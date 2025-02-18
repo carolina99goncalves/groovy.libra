@@ -1,91 +1,79 @@
-import fitz  # Biblioteca para ler e editar PDFs
-import pytesseract  # Biblioteca para reconhecer texto em imagens, permite transformar imagens em texto (OCR)
-import cv2  # OpenCV para processar imagens (editar imagens e cobrir textos, adicionar o retângulo preto)
-import numpy as np  # Biblioteca para trabalhar com números e matrizes (útil para converter imagens)
-import pandas as pd  # Biblioteca para ler arquivos Excel
-import os  # Para interagir com arquivos e pastas no computador
-from PIL import Image  # Biblioteca para manipular imagens
+import fitz  # PyMuPDF para manipular PDFs
+import pytesseract  # Tesseract OCR para extrair texto de imagens
+import cv2  # OpenCV para processar imagens
+import numpy as np  # Numpy para operações com arrays
+import pandas as pd  # Pandas para ler Excel
+import os  # Para manipular arquivos e pastas
+from PIL import Image  # Pillow para converter imagens
+import re  # Expressões regulares para extrair nomes de lotes
+import shutil  # Para mover arquivos
 
-# O Tesseract é o programa que converte imagens em texto. Aqui, o código está dizendo onde o Tesseract está instalado no computador.
-pytesseract.pytesseract.tesseract_cmd = r"C:\Users\10680\Downloads\tesseract-ocr-w64-setup-5.5.0.20241111.exe"
+# 📌 Configurar Tesseract OCR (ajuste conforme a instalação)
+pytesseract.pytesseract.tesseract_cmd = r"C:\Users\10680\OneDrive - EFACEC Power Solutions, SGPS, SA\Desktop\TESSERACT\tesseract.exe"
 
-# 🔹 Caminhos base
-# Caminho do Excel com os fornecedores e lotes
+# 📂 Caminhos
 excel_path = r"C:\Users\10680\EFACEC Power Solutions, SGPS, SA\Margarida Rosa Pimenta - Efacec Mobility 1ºPP\1. IANOS\3º EC Report M31-M39_M49-M51\Lotes.xlsx"
-
-# Pasta onde estão os PDFs originais
 input_folder = r"C:\Users\10680\EFACEC Power Solutions, SGPS, SA\Margarida Rosa Pimenta - Efacec Mobility 1ºPP\1. IANOS\3º EC Report M31-M39_M49-M51\3. Lotes"
-
-# Pasta onde os PDFs editados serão salvos
 output_base_folder = r"C:\Users\10680\EFACEC Power Solutions, SGPS, SA\Margarida Rosa Pimenta - Efacec Mobility 1ºPP\1. IANOS\3º EC Report M31-M39_M49-M51\2. Faturas"
 
-#Carregar a tabela do Excel
-df = pd.read_excel(excel_path, sheet_name="Lotes", usecols="B:F")
 
-# Renomear colunas para fácil acesso
-df.columns = ["UN", "Documento_Baan", "Pasta", "Parceiro", "Lote"]
+# 🔍 Carregar Excel com os lotes
+df = pd.read_excel(excel_path, sheet_name="Lotes", usecols="B:G", header=1)
+lotes_dict = {str(row["Documento Lote"]): os.path.join(output_base_folder, str(row["Pasta"])) for _, row in df.iterrows()}
 
-#Criar um dicionário {Nome PDF: (Parceiro, Lote, Pasta, UN)}
-lotes_dict = {
-    str(row["Documento_Baan"]): (str(row["Parceiro"]), str(row["Lote"]), row["Pasta"], str(row["UN"]))
-    for _, row in df.iterrows()
-}
+# Criar pastas de saída se não existirem
+for pasta in lotes_dict.values():
+    os.makedirs(pasta, exist_ok=True)
 
-#Função para processar e redigir os PDFs
-def redigir_pdf(pdf_path, parceiro_autorizado, output_path):
-    doc = fitz.open(pdf_path)
+# 📂 Processar cada PDF
+pdf_files = [f for f in os.listdir(input_folder) if f.endswith(".pdf")]
 
-    for page_num in range(len(doc)):  
-        page = doc[page_num]
-        pix = page.get_pixmap()
-        
-        # Convertendo a página para imagem
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        img_cv = np.array(img)
+for pdf in pdf_files:
+    match = re.match(r"(L\d{4,5})", pdf)
+    if match:
+        lote = match.group(1)
+        if lote in lotes_dict:
+            destino = os.path.join(lotes_dict[lote], pdf)
+            pdf_path = os.path.join(input_folder, pdf)
 
-        # OCR para extrair texto:  usa OCR para transformar a imagem da página em texto digital.
-        extracted_text = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+            # 🏷️ Abrir o PDF
+            doc = fitz.open(pdf_path)
+            images = []
 
-        for i, word in enumerate(extracted_text["text"]):
-            # Detectar padrões na coluna "Ordens" e "Beneficiários"
-            if word.startswith("BES") or (word.startswith("P") and word[1:].isdigit()):
-                parceiro_numero = word.strip()
+            for page_num, page in enumerate(doc):
+                # 📷 Converter página em imagem
+                pix = page.get_pixmap()
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                img = np.array(img)
 
-                # 🔹 Se o parceiro **NÃO** for o autorizado, ocultamos
-                if parceiro_numero != parceiro_autorizado:
-                    (x, y, w, h) = (extracted_text["left"][i], extracted_text["top"][i], 
-                                    extracted_text["width"][i], extracted_text["height"][i])
-                    cv2.rectangle(img_cv, (x, y), (x + w, y + h), (0, 0, 0), -1)  # Caixa preta
+                # 📝 Extrair texto e posições usando Tesseract
+                h, w, _ = img.shape
+                data = pytesseract.image_to_data(img, lang="por", output_type=pytesseract.Output.DICT)
 
-        # Converter de volta para PDF
-        img_pil = Image.fromarray(img_cv)
-        img_pil.save(f"temp_page_{page_num}.png")
+                # 🔳 Cobrir palavras detectadas
+                for i in range(len(data["text"])):
+                    if int(data["conf"][i]) > 50:  # Confiança mínima de 50%
+                        x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+                        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 0), -1)
 
-        img_rect = fitz.open(f"temp_page_{page_num}.png")
-        page.insert_image(page.rect, filename=f"temp_page_{page_num}.png")
+                images.append(img)
 
-    doc.save(output_path)
-    doc.close()
+            # 📝 Criar novo PDF com as imagens editadas
+            censored_pdf = fitz.open()
+            for img in images:
+                img_pil = Image.fromarray(img).convert("RGB")
+                img_bytes = img_pil.tobytes("jpeg", "RGB")
+                new_page = censored_pdf.new_page(width=img_pil.width, height=img_pil.height)
+                new_page.insert_image(new_page.rect, stream=img_bytes)
 
-# 🔹 Processar todos os PDFs na pasta "3. Lotes"
-for pdf_file in os.listdir(input_folder):
-    pdf_name, ext = os.path.splitext(pdf_file)
-    if ext.lower() == ".pdf" and pdf_name in lotes_dict:
-        parceiro, lote, pasta_destino = lotes_dict[pdf_name]
-        
-        input_pdf_path = os.path.join(input_folder, pdf_file)
-         # Criar caminho correto dentro da UN
-        un_folder = os.path.join(output_base_folder, un)  # Caminho para a UN
-        output_folder = os.path.join(un_folder, pasta_destino)  # Caminho final
+            censored_pdf.save(destino)
+            censored_pdf.close()
+            doc.close()
 
-        # Criar pasta da UN e a pasta final se não existirem
-        os.makedirs(output_folder, exist_ok=True)
-
-        # Nome final do PDF
-        output_pdf_path = os.path.join(output_folder, f"{pdf_name}_{lote}.pdf")
-
-        print(f"🔹 Processando: {pdf_file} | Parceiro: {parceiro} | Lote: {lote} | UN: {un}")
-        
-        redigir_pdf(input_pdf_path, parceiro, output_pdf_path)
+            print(f"✅ PDF '{pdf}' censurado e movido para '{lotes_dict[lote]}'")
+        else:
+            print(f"⚠️ Documento Lote '{lote}' não encontrado no Excel! PDF '{pdf}' ignorado.")
+    else:
+        print(f"⚠️ Nome de arquivo '{pdf}' não segue o padrão esperado. Ignorado.")
 
 print("✅ Processamento concluído!")
