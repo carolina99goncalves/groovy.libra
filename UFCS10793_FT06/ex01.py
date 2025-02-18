@@ -31,3 +31,4 @@ print(cores)
 
 #Faz o print do tamanho da lista (len)
 print(len(cores))
+
