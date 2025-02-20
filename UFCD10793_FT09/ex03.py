@@ -37,6 +37,10 @@ print("\nDicionário atualizado:", Computadores_1)
 #e.Copie o dicionário para um novo usando Deep Copy().
 Computadores_2 = copy.deepcopy(Computadores_1)
 
+#ou
+
+Computadores_2 = Computadores_1.copy()
+
 # Mostrar os dois dicionários para confirmar a cópia
 print("\nDicionário original:", Computadores_1)
 print("Dicionário copiado (Deep Copy):", Computadores_2)
@@ -59,7 +63,21 @@ print("\nNovo dicionário modificado (Computadores_3):", Computadores_3)
 #h.Cria uma lista cujos elementos são os três dicionários.
 lista_computadores = [Computadores_1, Computadores_2, Computadores_3]
 
-#i.Imprima as marcas com 128G de Discoj.Imprima as marcas com 8 e 12 de RAM
+# Imprimir a lista para verificar se os três dicionários estão dentro dela
 print("\nLista de dicionários:")
 for idx, computador in enumerate(lista_computadores, start=1):
     print(f"Computador {idx}: {computador}")
+
+#i.Imprima as marcas com 128G de Disco
+print("\nMarcas com 128G de Disco:")
+
+for computador in lista_computadores:
+    if "Disco" in computador and "128G" in computador["Disco"]:
+        print(computador["Marca"])
+
+# j.Imprima as marcas com 8 e 12 de RAM
+print("\nMarcas com 8 e 12 de RAM:")
+
+for computador in lista_computadores:
+    if "RAM" in computador and 8 in computador["RAM"] and 12 in computador["RAM"]:
+        print(computador["Marca"])
