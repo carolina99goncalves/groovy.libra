@@ -7,6 +7,7 @@ Para garantir a integridade dos dados, o sistema deve:'''
 
 import hashlib
 import os
+
 def calcular_hash(ficheiro):
     """Calcula o hash MD5 de um ficheiro binário para verificar integridade."""
     hash_md5 = hashlib.md5()
@@ -15,23 +16,23 @@ def calcular_hash(ficheiro):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def copiar_ficheiro_binario(origem, destino):
-'''Copia um ficheiro binário e verifica a integridade dos dados.'''
-try:
-    if not os.path.exists(origem): # Verificar se o ficheiro de origem existe
-        print("Erro: O ficheiro de origem não existe.")
-        return
-# Copiar o ficheiro binário
-with open(origem, "rb") as f_origem, open(destino, "wb") as f_destino:
-    for chunk in iter(lambda: f_origem.read(4096), b""): # Copia em blocos de 4KB
-        f_destino.write(chunk)
+def copiar_ficheiro_binario(origem, destino): #Copia um ficheiro binário e verifica a integridade dos dados.'''
+    try:
+        if not os.path.exists(origem): # Verificar se o ficheiro de origem existe
+            print("Erro: O ficheiro de origem não existe.")
+            return
+        
+        with open(origem, "rb") as f_origem, open(destino, "wb") as f_destino:# Copiar o ficheiro binário
+            for chunk in iter(lambda: f_origem.read(4096), b""): # Copia em blocos de 4KB
+                f_destino.write(chunk)
+            
 # Verificar integridade dos ficheiros
-    if calcular_hash(origem) == calcular_hash(destino):
-    print(f"Sucesso! O ficheiro '{destino}' foi copiado corretamente.")
-    else:
-    print("Erro: A cópia do ficheiro não é idêntica ao original.")
-except Exception as e:
-print(f"Erro inesperado: {e}")
+        if calcular_hash(origem) == calcular_hash(destino):
+            print(f"Sucesso! O ficheiro '{destino}' foi copiado corretamente.")
+        else:
+            print("Erro: A cópia do ficheiro não é idêntica ao original.")
+    except Exception as e:
+        print(f"Erro inesperado: {e}")
     
 # Solicitar entrada do utilizador
 ficheiro_origem = input("Digite o nome do ficheiro binário a copiar: ")
