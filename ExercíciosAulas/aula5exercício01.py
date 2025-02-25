@@ -1,6 +1,8 @@
 '''Escreve um programa que, dada uma sequência de numeros inteiros  (todos fornecidos na mesma linha, 
 separados por espaços) , imprima a média desses numeros.'''
 
+#https://www.learnpython.org/pt/Map%2C_Filter%2C_Reduce
+
 
 # Ler a entrada como string
 entrada = input("Digite os números inteiros separados por espaço:")
@@ -22,3 +24,10 @@ if numeros_str:
     print(f"Média: {media:.2f}")  # Exibir com duas casas decimais
 else:
     print("Nenhum número foi inserido.")
+    
+    
+#outra resolução
+
+numeros = input("Digite os números separados por espaço: ").split()
+media = sum(map(int, numeros)) / len(numeros)
+print(f"Média: {media:.2f}")
